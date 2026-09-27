@@ -83,12 +83,19 @@ export function SettingsPage() {
         </div>
       </Section>
 
-      <Section title="Sources" hint="Company career sites: the board name from the careers URL - job-boards.greenhouse.io/NAME, jobs.lever.co/NAME, jobs.ashbyhq.com/NAME.">
+      <Section title="Company career sites" hint="Companies scanned directly on their own career sites. Workday and SmartRecruiters companies are searched with your keywords; the others list all open roles.">
         <div className="grid gap-4">
-          {(["greenhouse", "lever", "ashby"] as const).map((ats) => (
+          {([
+            ["greenhouse", "Greenhouse", "board name from job-boards.greenhouse.io/NAME"],
+            ["lever", "Lever", "board name from jobs.lever.co/NAME"],
+            ["ashby", "Ashby", "board name from jobs.ashbyhq.com/NAME"],
+            ["workday", "Workday", "careers URL, e.g. Mastercard | https://mastercard.wd1.myworkdayjobs.com/CorporateCareers"],
+            ["smartrecruiters", "SmartRecruiters", "company id from jobs.smartrecruiters.com/ID"],
+            ["workable", "Workable", "slug from apply.workable.com/SLUG"],
+          ] as const).map(([ats, label, hint]) => (
             <div key={ats}>
-              <Label>{ats[0].toUpperCase() + ats.slice(1)}</Label>
-              <TagInput value={companies[ats] ?? []} placeholder="board name"
+              <Label hint={hint}>{label}</Label>
+              <TagInput value={companies[ats] ?? []} placeholder={ats === "workday" ? "paste a careers URL" : "name"}
                 onChange={(v) => set((c) => { c.sources.companies = { ...c.sources.companies, [ats]: v }; })} />
             </div>
           ))}

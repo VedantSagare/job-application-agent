@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 import httpx
 
 from jobagent.db import Job
+from jobagent.sources import ats_more
 from jobagent.sources.common import html_to_text, log
 
 
@@ -78,22 +79,34 @@ def ashby(slug: str, http: httpx.Client) -> list[Job]:
 
 
 FETCHERS = {"greenhouse": greenhouse, "lever": lever, "ashby": ashby}
+# These search each company with your keywords (big employers list thousands of roles).
+KEYWORD_FETCHERS = {"workday": ats_more.workday, "smartrecruiters": ats_more.smartrecruiters,
+                    "workable": ats_more.workable}
+ALL_ATS = {**FETCHERS, **KEYWORD_FETCHERS}
 
 
-def fetch_companies(companies: dict[str, list[str]], http: httpx.Client) -> list[Job]:
+def fetch_companies(companies: dict[str, list[str]], http: httpx.Client,
+                    keywords: list[str] | None = None) -> list[Job]:
     out: list[Job] = []
     for ats, slugs in (companies or {}).items():
         fetch = FETCHERS.get(ats)
-        if not fetch:
-            log.warning(f"Unknown ATS '{ats}' in config (supported: {', '.join(FETCHERS)})")
+        keyword_fetch = KEYWORD_FETCHERS.get(ats)
+        if not fetch and not keyword_fetch:
+            log.warning(f"Unknown ATS '{ats}' in config (supported: {', '.join(ALL_ATS)})")
             continue
         for slug in slugs or []:
             try:
-                jobs = fetch(slug, http)
-                log.info(f"{ats}/{slug}: {len(jobs)} open roles")
+                if keyword_fetch:
+                    jobs = keyword_fetch(slug, http, keywords or [])
+                    log.info(f"{ats}/{slug}: {len(jobs)} matching roles")
+                else:
+                    jobs = fetch(slug, http)
+                    log.info(f"{ats}/{slug}: {len(jobs)} open roles")
                 out.extend(jobs)
             except httpx.HTTPStatusError as e:
-                log.warning(f"{ats}/{slug}: HTTP {e.response.status_code} - check the board slug")
+                log.warning(f"{ats}/{slug}: HTTP {e.response.status_code} - check the board name / careers URL")
+            except ValueError as e:
+                log.warning(f"{ats}/{slug}: {e}")
             except httpx.HTTPError as e:
                 log.warning(f"{ats}/{slug}: {e}")
     return out

@@ -3,32 +3,32 @@
 search:
   # Job titles / keywords to search for on LinkedIn and Naukri.
   keywords:
-    - "Backend Developer"
-    - "Backend Engineer"
+  - Backend Developer
+  - Backend Engineer
 
   locations:
-    - "Bengaluru"
-    - "Remote"
-    -"Hyderabad"
+  - Bengaluru
+  - Remote
+  - Hyderabad
   # Only keep career-portal jobs whose title contains one of these words (case-insensitive).
   # Leave empty to keep every job from the listed companies.
   title_must_include:
-    - "engineer"
-    - "developer"
+  - engineer
+  - developer
   # Drop jobs whose title contains any of these.
   title_exclude:
-    - "principal"
-    - "staff"
-    - "director"
-    - "intern"
+  - principal
+  - staff
+  - director
+  - intern
   # Drop career-portal jobs whose location doesn't mention one of these (empty = keep all).
   location_include:
-    - "india"
-    - "bengaluru"
-    - "bangalore"
-    - "remote"
+  - india
+  - bengaluru
+  - bangalore
+  - remote
   # Scoring order: jobs whose location/source matches earlier entries are scored first.
-  priority_locations: ["india", "naukri", "bengaluru", "remote"]
+  priority_locations: [india, naukri, bengaluru, remote]
   max_age_days: 14          # LinkedIn "posted within" filter
   min_match_score: 60      # jobs scoring below this are marked "skipped"
 
@@ -51,10 +51,22 @@ sources:
   #   Greenhouse: https://job-boards.greenhouse.io/<slug>   or boards.greenhouse.io/<slug>
   #   Lever:      https://jobs.lever.co/<slug>
   #   Ashby:      https://jobs.ashbyhq.com/<slug>
+  workday_pages: 2 # Workday: result pages (20 jobs each) per company per keyword
   companies:
     greenhouse: [stripe, databricks]
     lever: [palantir]
     ashby: [ramp]
+    # Workday: careers URL (optionally 'Name | URL'). SmartRecruiters: company id from
+    # jobs.smartrecruiters.com/<Id>. Workable: slug from apply.workable.com/<slug>.
+    # Workday and SmartRecruiters are searched with your keywords.
+    workday:
+    - NVIDIA | https://nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite
+    - Mastercard | https://mastercard.wd1.myworkdayjobs.com/CorporateCareers
+    smartrecruiters:
+    - ServiceNow
+    - Freshworks
+    workable:
+    - apna
 
 llm:
   # subscription = use your Claude Pro/Max login via the Claude Code CLI (no API credits needed)
@@ -74,16 +86,16 @@ browser:
 # Facts used to answer application-form questions that aren't in your resume.
 # The agent never invents answers: anything it can't answer from here or your resume is left blank for you.
 applicant:
-  phone: "+91 90000 00000"
-  linkedin_url: "https://www.linkedin.com/in/your-handle"
-  github_url: "https://github.com/your-handle"
-  portfolio_url: ""
-  current_location: "Bengaluru, India"
-  willing_to_relocate: "Yes"
-  work_authorization: "Indian citizen; authorized to work in India. Requires visa sponsorship for other countries."
-  notice_period: "30 days"
-  current_ctc: ""
-  expected_ctc: ""
-  years_of_experience: ""
-  gender: ""                # leave blank to skip voluntary EEO questions
-  how_did_you_hear: "Company careers page"
+  phone: +91 90000 00000
+  linkedin_url: https://www.linkedin.com/in/your-handle
+  github_url: https://github.com/your-handle
+  portfolio_url: ''
+  current_location: Bengaluru, India
+  willing_to_relocate: Yes
+  work_authorization: Indian citizen; authorized to work in India. Requires visa sponsorship for other countries.
+  notice_period: 30 days
+  current_ctc: ''
+  expected_ctc: ''
+  years_of_experience: ''
+  gender: ''                # leave blank to skip voluntary EEO questions
+  how_did_you_hear: Company careers page

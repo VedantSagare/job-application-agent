@@ -20,7 +20,7 @@ def _keep(job: Job) -> bool:
     if any(x.lower() in title for x in cfg("search.title_exclude", [])):
         return False
     # Keyword searches (LinkedIn/Naukri) are already targeted; career portals list every role.
-    if job.source in ats.FETCHERS:
+    if job.source in ats.ALL_ATS:
         must = [x.lower() for x in cfg("search.title_must_include", [])]
         if must and not any(x in title for x in must):
             return False
@@ -38,9 +38,11 @@ def discover(only: str | None = None) -> int:
     locations = cfg("search.locations", [])
     jobs: list[Job] = []
 
-    with httpx.Client(headers={"User-Agent": USER_AGENT}, timeout=30, follow_redirects=True) as http:
+    # retries=3: reconnect on brief network drops (DNS / connection errors) instead of skipping a site
+    with httpx.Client(headers={"User-Agent": USER_AGENT}, timeout=30, follow_redirects=True,
+                      transport=httpx.HTTPTransport(retries=3)) as http:
         if "companies" in wanted:
-            jobs += ats.fetch_companies(cfg("sources.companies", {}), http)
+            jobs += ats.fetch_companies(cfg("sources.companies", {}), http, keywords)
         if "linkedin" in wanted and (only or cfg("sources.linkedin.enabled", True)):
             jobs += linkedin.search(keywords, locations, cfg("sources.linkedin.pages", 1),
                                     cfg("search.max_age_days", 14), http)

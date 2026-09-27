@@ -15,7 +15,8 @@ Powered by Claude (via your Claude subscription or the Anthropic API), Playwrigh
 ## Features
 
 - **Job discovery**
-  - Company career sites via the public Greenhouse, Lever and Ashby job-board APIs (no scraping)
+  - Company career sites via the public job feeds of Greenhouse, Lever, Ashby, **Workday**,
+    SmartRecruiters and Workable (no login, no scraping of search pages)
   - LinkedIn public job search, Naukri search and Instahyre (skills-based search via its public job API)
   - Location filter: e.g. *India + remote jobs open to India* (drops "US - Remote" and the like)
   - Title filters, de-duplication across sources, India/remote-first ordering
@@ -108,21 +109,29 @@ Instahyre searches by **skills** rather than job titles. Set them in `config.yam
 
 ### Adding companies
 
-Read the board name from the company's careers URL and add it in Settings (or `config.yaml`):
+Add a company in **Settings → Company career sites** (or under `sources.companies` in `config.yaml`):
 
-| ATS        | Careers URL looks like              | config key   |
-|------------|-------------------------------------|--------------|
-| Greenhouse | `job-boards.greenhouse.io/<name>`   | `greenhouse` |
-| Lever      | `jobs.lever.co/<name>`              | `lever`      |
-| Ashby      | `jobs.ashbyhq.com/<name>`           | `ashby`      |
+| System | What to enter | Example |
+|---|---|---|
+| Greenhouse | board name from `job-boards.greenhouse.io/<name>` | `gitlab` |
+| Lever | board name from `jobs.lever.co/<name>` | `zeta` |
+| Ashby | board name from `jobs.ashbyhq.com/<name>` | `notion` |
+| **Workday** | careers URL, optionally with a display name | `Mastercard \| https://mastercard.wd1.myworkdayjobs.com/CorporateCareers` |
+| SmartRecruiters | company id from `jobs.smartrecruiters.com/<Id>` | `ServiceNow` |
+| Workable | slug from `apply.workable.com/<slug>` | `apna` |
 
-Workday/Taleo portals need an account per company: open the job from the dashboard and use the tailored PDF.
+Greenhouse, Lever, Ashby and Workable list every open role; Workday and SmartRecruiters companies are
+searched with your keywords (big employers list thousands of roles). Title and location filters apply
+to all of them. Workday applications need a per-company account: sign in when the form asks, then use
+**Fill current page**. iCIMS, Taleo, SuccessFactors and custom career sites aren't scanned directly –
+those jobs usually reach you through LinkedIn, Naukri or Instahyre.
 
 ## Project structure
 
 ```
 jobagent/
-  sources/          job discovery: ats.py (Greenhouse/Lever/Ashby), linkedin.py, naukri.py,
+  sources/          job discovery: ats.py (Greenhouse/Lever/Ashby), ats_more.py (Workday/
+                    SmartRecruiters/Workable), linkedin.py, naukri.py,
                     instahyre.py, location.py
   matcher.py        Claude match scoring
   resume.py         resume parsing, tailoring, one-page PDF rendering
