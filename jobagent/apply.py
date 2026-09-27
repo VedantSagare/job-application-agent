@@ -448,10 +448,14 @@ def run_one(job_id: str, tailor_first: bool = False) -> None:
                 page.wait_for_timeout(3000)
             except PWError as e:
                 console.print(f"Could not open page: {e}")
-            if "naukri.com" in page.url:
-                # Naukri's Apply button submits instantly with your Naukri profile, so it is never auto-clicked.
-                console.print("Naukri: log in if needed and click Apply yourself (it applies instantly). If it "
-                              "opens a questionnaire or a company site, press 'Fill current page'.")
+            one_click = next((name for site, name in (("naukri.com", "Naukri"), ("instahyre.com", "Instahyre"))
+                              if site in page.url), None)
+            if one_click:
+                # Naukri's and Instahyre's Apply buttons submit instantly with your profile on that site,
+                # so they are never auto-clicked.
+                console.print(f"{one_click}: log in if needed and click Apply yourself (it applies instantly with "
+                              f"your {one_click} profile). If it opens a questionnaire or a company site, press "
+                              "'Fill current page'.")
             else:
                 autofill(page, job, tailored, cover_letter, files)
         console.print("\nReview the form in the browser and click Submit yourself. Then press "

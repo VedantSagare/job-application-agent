@@ -9,14 +9,14 @@ Powered by Claude (via your Claude subscription or the Anthropic API), Playwrigh
 ```
  Search                Score                 Tailor (per job)          Auto-fill (per job)         You
  career sites   ──►   Claude rates   ──►    resume + cover letter ──► opens the form in    ──►   review &
- LinkedIn, Naukri      each job 0-100        in your resume's layout    Chrome and fills it        Submit
+ LinkedIn,Naukri,      each job 0-100        in your resume's layout    Chrome and fills it        Submit
 ```
 
 ## Features
 
 - **Job discovery**
   - Company career sites via the public Greenhouse, Lever and Ashby job-board APIs (no scraping)
-  - LinkedIn public job search and Naukri search
+  - LinkedIn public job search, Naukri search and Instahyre (skills-based search via its public job API)
   - Location filter: e.g. *India + remote jobs open to India* (drops "US - Remote" and the like)
   - Title filters, de-duplication across sources, India/remote-first ordering
 - **Match scoring** – Claude rates each job against your resume with reasons and gaps, so you spend time on real fits
@@ -84,21 +84,27 @@ python -m venv .venv
    - **red** outline = needs your answer · **orange** = couldn't be filled automatically
    - **LinkedIn:** log in once in the agent's Chrome window (it waits, then remembers). Easy Apply is
      filled step by step and stops at *Submit application*.
-   - **Naukri:** its Apply button submits instantly with your Naukri profile, so the agent never
-     clicks it. Click Apply yourself, then **Fill current page** if a questionnaire opens.
+   - **Naukri / Instahyre:** their Apply buttons submit instantly with your profile on that site, so
+     the agent never clicks them. Click Apply yourself, then **Fill current page** if a questionnaire opens.
    - Multi-step forms: after moving to the next page, click **Fill current page**.
 5. Click **Submit** in the browser yourself, then **Mark applied** in the dashboard.
 
 ### Command line (optional)
 
 ```powershell
-python -m jobagent discover [--source companies,linkedin,naukri]
+python -m jobagent discover [--source companies,linkedin,naukri,instahyre]
 python -m jobagent score --limit 30
 python -m jobagent tailor --job <id>
 python -m jobagent apply            # interactive terminal version of auto-fill
 python -m jobagent status
 python -m jobagent web              # dashboard
 ```
+
+### Instahyre settings
+
+Instahyre searches by **skills** rather than job titles. Set them in `config.yaml` under
+`sources.instahyre`: `skills` (e.g. `[Java, Spring Boot]`), `job_functions` (10 = Backend,
+1 = Full-Stack, 76 = Other Software Development) and `years` (blank = your experience from the form answers).
 
 ### Adding companies
 
@@ -116,7 +122,8 @@ Workday/Taleo portals need an account per company: open the job from the dashboa
 
 ```
 jobagent/
-  sources/          job discovery: ats.py (Greenhouse/Lever/Ashby), linkedin.py, naukri.py, location.py
+  sources/          job discovery: ats.py (Greenhouse/Lever/Ashby), linkedin.py, naukri.py,
+                    instahyre.py, location.py
   matcher.py        Claude match scoring
   resume.py         resume parsing, tailoring, one-page PDF rendering
   templates/        resume HTML template

@@ -12,7 +12,7 @@ const TABS: { id: string; label: string; statuses: Status[] }[] = [
 ];
 
 const SOURCE_LABEL: Record<string, string> = {
-  greenhouse: "Career site", lever: "Career site", ashby: "Career site", linkedin: "LinkedIn", naukri: "Naukri",
+  greenhouse: "Career site", lever: "Career site", ashby: "Career site", linkedin: "LinkedIn", naukri: "Naukri", instahyre: "Instahyre",
 };
 
 function ago(iso: string) {

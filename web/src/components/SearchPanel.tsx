@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Building2, Briefcase, Search, Users, Sparkles } from "lucide-react";
+import { Building2, Briefcase, Rocket, Search, Users, Sparkles } from "lucide-react";
 import { api, type Config } from "../api";
 import { Button, Card, Chip, Label, TagInput, useAction } from "./ui";
 
@@ -7,6 +7,7 @@ const SOURCES = [
   { id: "companies", label: "Company career sites", icon: <Building2 className="size-4" /> },
   { id: "linkedin", label: "LinkedIn", icon: <Users className="size-4" /> },
   { id: "naukri", label: "Naukri", icon: <Briefcase className="size-4" /> },
+  { id: "instahyre", label: "Instahyre", icon: <Rocket className="size-4" /> },
 ];
 
 export function SearchPanel({ config, running, onStarted }: {
@@ -14,7 +15,7 @@ export function SearchPanel({ config, running, onStarted }: {
 }) {
   const [keywords, setKeywords] = useState<string[]>([]);
   const [locations, setLocations] = useState<string[]>([]);
-  const [sources, setSources] = useState<string[]>(["companies", "linkedin", "naukri"]);
+  const [sources, setSources] = useState<string[]>(["companies", "linkedin", "naukri", "instahyre"]);
   const [maxAge, setMaxAge] = useState(14);
   const [doScore, setDoScore] = useState(true);
   const [scoreLimit, setScoreLimit] = useState(30);

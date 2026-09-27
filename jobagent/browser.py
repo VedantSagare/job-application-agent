@@ -36,3 +36,22 @@ def pdf_page() -> Iterator:
             yield browser.new_page()
         finally:
             browser.close()
+
+
+@contextmanager
+def headless_page() -> Iterator:
+    """Hidden browser page that identifies as regular Chrome (some job sites block "HeadlessChrome").
+    Images, fonts and media are skipped for speed."""
+    with sync_playwright() as p:
+        browser = p.chromium.launch(channel=cfg("browser.channel", "chrome"), headless=True,
+                                    args=["--disable-blink-features=AutomationControlled"])
+        ua = (f"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
+              f"Chrome/{browser.version} Safari/537.36")
+        ctx = browser.new_context(user_agent=ua, locale="en-US")
+        page = ctx.new_page()
+        page.route("**/*", lambda r: r.abort() if r.request.resource_type in ("image", "font", "media")
+                   else r.continue_())
+        try:
+            yield page
+        finally:
+            browser.close()

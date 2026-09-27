@@ -38,7 +38,15 @@ sources:
     pages: 3                # ~10 jobs per page, per keyword x location
   naukri:
     enabled: true
-    pages: 1                # 20 jobs per page; opens a visible Edge window
+    pages: 1                # 20 jobs per page; opens a visible Chrome window
+  instahyre:
+    enabled: true
+    pages: 3                # 20 jobs per page
+    # Instahyre searches by skills rather than job titles.
+    skills: [Java, Spring Boot]
+    # Job functions: 10 = Backend Development, 1 = Full-Stack Development, 76 = Other Software Development
+    job_functions: [10, 1]
+    years:                  # your years of experience; blank = use applicant.total_experience_years
   # Company career portals. Use the board slug from the careers URL:
   #   Greenhouse: https://job-boards.greenhouse.io/<slug>   or boards.greenhouse.io/<slug>
   #   Lever:      https://jobs.lever.co/<slug>

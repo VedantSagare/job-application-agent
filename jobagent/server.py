@@ -125,7 +125,7 @@ def open_folder(job_id: str) -> dict:
 class SearchBody(BaseModel):
     keywords: list[str]
     locations: list[str]
-    sources: list[str]            # subset of companies, linkedin, naukri
+    sources: list[str]            # subset of companies, linkedin, naukri, instahyre
     max_age_days: int = 14
     score_limit: int = 0          # 0 = find only
     tailor_limit: int = 0
@@ -143,7 +143,7 @@ def search(body: SearchBody) -> dict:
     doc["search"]["locations"] = body.locations
     doc["search"]["max_age_days"] = body.max_age_days
     _save_yaml(doc)
-    names = {"companies": "career sites", "linkedin": "LinkedIn", "naukri": "Naukri"}
+    names = {"companies": "career sites", "linkedin": "LinkedIn", "naukri": "Naukri", "instahyre": "Instahyre"}
     label = "Search " + ", ".join(names.get(s, s) for s in body.sources)
     return _start(label, "search", "--sources", ",".join(body.sources),
                   "--score-limit", str(body.score_limit), "--tailor-limit", str(body.tailor_limit))

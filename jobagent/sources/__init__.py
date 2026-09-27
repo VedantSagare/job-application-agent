@@ -1,6 +1,8 @@
 """Discovery: pull jobs from every enabled source, filter by title/location, store new ones."""
 from __future__ import annotations
 
+import re
+
 import httpx
 
 from jobagent import db
@@ -29,8 +31,9 @@ def _keep(job: Job) -> bool:
 
 
 def discover(only: str | None = None) -> int:
-    """`only`: None for every enabled source, or a comma-separated subset of companies,linkedin,naukri."""
-    wanted = set(only.split(",")) if only else {"companies", "linkedin", "naukri"}
+    """`only`: None for every enabled source, or a comma-separated subset of
+    companies,linkedin,naukri,instahyre."""
+    wanted = set(only.split(",")) if only else {"companies", "linkedin", "naukri", "instahyre"}
     keywords = cfg("search.keywords", [])
     locations = cfg("search.locations", [])
     jobs: list[Job] = []
@@ -41,6 +44,15 @@ def discover(only: str | None = None) -> int:
         if "linkedin" in wanted and (only or cfg("sources.linkedin.enabled", True)):
             jobs += linkedin.search(keywords, locations, cfg("sources.linkedin.pages", 1),
                                     cfg("search.max_age_days", 14), http)
+        if "instahyre" in wanted and (only or cfg("sources.instahyre.enabled", True)):
+            from jobagent.sources import instahyre
+            years = cfg("sources.instahyre.years")
+            if years in (None, ""):  # default: the experience in your form answers
+                m = re.search(r"\d+", str(cfg("applicant.total_experience_years", "")))
+                years = int(m.group()) if m else None
+            jobs += instahyre.search(cfg("sources.instahyre.skills", []) or keywords,
+                                     cfg("sources.instahyre.job_functions", []), years,
+                                     cfg("sources.instahyre.pages", 3), http)
 
     if "naukri" in wanted and (only or cfg("sources.naukri.enabled", True)):
         from jobagent.browser import browser_context
