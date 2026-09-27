@@ -74,6 +74,9 @@ def connect() -> sqlite3.Connection:
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     conn.executescript(SCHEMA)
+    cols = {r["name"] for r in conn.execute("PRAGMA table_info(jobs)")}
+    if "prefit" not in cols:  # added later: quick fit estimate (see prefit.py)
+        conn.execute("ALTER TABLE jobs ADD COLUMN prefit INTEGER")
     return conn
 
 
@@ -118,7 +121,8 @@ def get(job_id_: str) -> sqlite3.Row | None:
         return conn.execute("SELECT * FROM jobs WHERE id = ?", (job_id_,)).fetchone()
 
 
-def by_status(*statuses: str, order: str = "score DESC, discovered_at DESC") -> list[sqlite3.Row]:
+def by_status(*statuses: str,
+              order: str = "score DESC, prefit DESC, discovered_at DESC") -> list[sqlite3.Row]:
     q = ",".join("?" * len(statuses))
     with connect() as conn:
         return conn.execute(

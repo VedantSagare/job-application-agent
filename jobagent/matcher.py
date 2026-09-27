@@ -36,7 +36,11 @@ def score_new(master: Resume, limit: int | None = None, job_id: str | None = Non
     if job_id:
         jobs = [j for j in [db.get(job_id)] if j]
     else:
-        jobs = sorted(db.by_status("new", order="discovered_at DESC"), key=_priority)[:limit]
+        from jobagent import prefit
+        prefit.update()
+        # Best estimated fit first (then preferred locations), so a limited run scores the most promising jobs.
+        jobs = sorted(db.by_status("new", order="discovered_at DESC"),
+                      key=lambda j: (-(j["prefit"] or 0), _priority(j)))[:limit]
     if not jobs:
         log.info("No new jobs to score.")
         return

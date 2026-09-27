@@ -9,8 +9,7 @@ from __future__ import annotations
 import re
 
 INDIA = [
-    "india", "bengaluru", "bangalore", "hyderabad", "secunderabad", "pune", "mumbai", "navi mumbai", "thane",
-    "chennai", "delhi", "new delhi", "ncr", "gurgaon", "gurugram", "noida", "greater noida", "faridabad",
+    "india", "bengaluru", "bangalore", "hyderabad", "secunderabad", "pune", "mumbai", "navi mumbai", "thane", "delhi", "new delhi", "ncr", "gurgaon", "gurugram", "noida", "greater noida", "faridabad",
     "ghaziabad", "kolkata", "ahmedabad", "gandhinagar", "jaipur", "chandigarh", "mohali", "kochi", "cochin",
     "thiruvananthapuram", "trivandrum", "coimbatore", "indore", "bhopal", "nagpur", "nashik", "vadodara",
     "surat", "lucknow", "bhubaneswar", "visakhapatnam", "vizag", "vijayawada", "mysore", "mysuru",

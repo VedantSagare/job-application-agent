@@ -16,6 +16,10 @@ const SOURCE_LABEL: Record<string, string> = {
   smartrecruiters: "Career site", workable: "Career site", linkedin: "LinkedIn", naukri: "Naukri", instahyre: "Instahyre",
 };
 
+// Claude's score where there is one. The quick estimate runs high (jobs estimated 70+ average ~60 from
+// Claude), so it's scaled down when ranked alongside Claude-scored jobs.
+const fit = (j: JobSummary) => j.score ?? (j.prefit === null ? -1 : j.prefit * 0.75);
+
 function ago(iso: string) {
   const d = (Date.now() - new Date(iso).getTime()) / 86400000;
   return d < 1 ? "today" : d < 2 ? "yesterday" : `${Math.floor(d)}d ago`;
@@ -27,6 +31,7 @@ export function JobsTable({ jobs, stats, selected, onSelect, running, onStarted 
 }) {
   const [tab, setTab] = useState("matches");
   const [query, setQuery] = useState("");
+  const [sort, setSort] = useState<"match" | "newest" | "company">("match");
   const [scoreN, setScoreN] = useState(30);
   const { busy, run } = useAction();
 
@@ -36,8 +41,13 @@ export function JobsTable({ jobs, stats, selected, onSelect, running, onStarted 
     return jobs
       .filter((j) => current.statuses.includes(j.status))
       .filter((j) => !q || `${j.company} ${j.title} ${j.location ?? ""}`.toLowerCase().includes(q))
-      .sort((a, b) => (b.score ?? -1) - (a.score ?? -1) || b.discovered_at.localeCompare(a.discovered_at));
-  }, [jobs, current, query]);
+      .sort((a, b) => {
+        if (sort === "newest") return b.discovered_at.localeCompare(a.discovered_at);
+        if (sort === "company") return a.company.localeCompare(b.company) || a.title.localeCompare(b.title);
+        // Best match: Claude's score where there is one, otherwise the quick estimate.
+        return (fit(b) - fit(a)) || b.discovered_at.localeCompare(a.discovered_at);
+      });
+  }, [jobs, current, query, sort]);
 
   const count = (t: (typeof TABS)[number]) => jobs.filter((j) => t.statuses.includes(j.status)).length;
 
@@ -55,7 +65,13 @@ export function JobsTable({ jobs, stats, selected, onSelect, running, onStarted 
             {t.label} <span className="ml-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">{count(t)}</span>
           </button>
         ))}
-        <div className="ml-auto mb-2 flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5">
+        <select value={sort} onChange={(e) => setSort(e.target.value as typeof sort)} title="Sort order"
+          className="ml-auto mb-2 rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-700">
+          <option value="match">Best match first</option>
+          <option value="newest">Newest first</option>
+          <option value="company">Company A-Z</option>
+        </select>
+        <div className="mb-2 flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5">
           <Search className="size-4 text-slate-400" />
           <input
             value={query}
@@ -72,7 +88,7 @@ export function JobsTable({ jobs, stats, selected, onSelect, running, onStarted 
           <Sparkles className="size-4 text-violet-500" /> Score the next
           <input type="number" min={1} max={500} value={scoreN} onChange={(e) => setScoreN(Number(e.target.value))}
             className="w-16 rounded border border-slate-300 bg-white px-1.5 py-0.5" />
-          jobs (India &amp; remote first)
+          best-estimated jobs
           <Button variant="primary" disabled={running} loading={busy === "score"} className="ml-2 py-1.5"
             onClick={() => run("score", async () => { await api.score(scoreN); onStarted(); }, "Scoring started")}>
             Score
@@ -106,7 +122,7 @@ export function JobsTable({ jobs, stats, selected, onSelect, running, onStarted 
                     selected === j.id ? "bg-blue-50" : ""
                   }`}
                 >
-                  <td className="px-4 py-2.5"><ScoreBadge score={j.score} /></td>
+                  <td className="px-4 py-2.5"><ScoreBadge score={j.score} estimate={j.prefit} /></td>
                   <td className="px-2 py-2.5">
                     <div className="font-medium text-slate-900">{j.title}</div>
                     <div className="text-slate-500">{j.company}</div>

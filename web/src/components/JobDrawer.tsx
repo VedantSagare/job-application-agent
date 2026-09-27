@@ -48,7 +48,7 @@ export function JobDrawer({ jobId, task, version, onClose, onChanged }: {
             {/* Header */}
             <div className="border-b border-slate-200 px-6 py-5">
               <div className="flex items-start gap-4">
-                <ScoreBadge score={job.score} size="lg" />
+                <ScoreBadge score={job.score} estimate={job.prefit} size="lg" />
                 <div className="min-w-0 flex-1">
                   <h2 className="text-xl font-semibold text-slate-900">{job.title}</h2>
                   <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-slate-600">

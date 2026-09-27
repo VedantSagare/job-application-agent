@@ -39,6 +39,8 @@ def parse_resume(pdf: Path = typer.Argument(..., exists=True, dir_okay=False, he
         BASE_RESUME_PDF.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy(pdf, BASE_RESUME_PDF)
     preview = render_pdf(r, MASTER_RESUME_JSON.with_name("master_preview.pdf"))
+    from jobagent import prefit
+    prefit.update(all_jobs=True)  # your skills changed: refresh the quick fit estimates
     console.print(f"[green]Parsed {r.name}: {len(r.experience)} roles, {len(r.projects)} projects.[/green]")
     console.print(f"Check/edit {MASTER_RESUME_JSON} - it's the single source of truth for every tailored resume.")
     console.print(f"Template preview: {preview}")

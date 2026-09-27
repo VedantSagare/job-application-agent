@@ -21,12 +21,18 @@ from jobagent import db, tasks
 from jobagent.config import BASE_RESUME_PDF, CONFIG_PATH, MASTER_RESUME_JSON, PROFILE_DIR, ROOT, load_config
 
 app = FastAPI(title="Job agent")
+
+
+@app.on_event("startup")
+def _fill_estimates() -> None:
+    from jobagent import prefit
+    prefit.update()  # jobs found before the quick fit estimate existed
 yaml = YAML()  # round-trip: keeps the comments in config.yaml
 yaml.width = 120
 
 STATUSES = ["new", "scored", "tailored", "applied", "skipped", "dismissed", "error"]
-LIST_FIELDS = ("id", "source", "company", "title", "location", "status", "score", "url", "apply_url",
-               "posted_at", "discovered_at", "applied_at")
+LIST_FIELDS = ("id", "source", "company", "title", "location", "status", "score", "prefit", "url",
+               "apply_url", "posted_at", "discovered_at", "applied_at")
 
 
 def _job_summary(r) -> dict[str, Any]:
@@ -260,6 +266,8 @@ def put_config(body: ConfigBody) -> dict:
     for section in ("search", "sources", "applicant", "llm"):
         _merge(doc[section], getattr(body, section))
     _save_yaml(doc)
+    from jobagent import prefit
+    prefit.update(all_jobs=True)  # keywords / experience may have changed
     return {"ok": True}
 
 

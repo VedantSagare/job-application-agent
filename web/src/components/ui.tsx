@@ -109,8 +109,19 @@ export function Chip({ active, onClick, children, icon }: {
 
 // ---------------------------------------------------------------- Score badge
 
-export function ScoreBadge({ score, size = "sm" }: { score: number | null; size?: "sm" | "lg" }) {
-  if (score === null || score === undefined) return <span className="text-sm text-slate-300">—</span>;
+export function ScoreBadge({ score, estimate, size = "sm" }: {
+  score: number | null; estimate?: number | null; size?: "sm" | "lg";
+}) {
+  if (score === null || score === undefined) {
+    if (estimate === null || estimate === undefined) return <span className="text-sm text-slate-300">—</span>;
+    const dim = size === "lg" ? "size-14 text-lg" : "size-9 text-xs";
+    return (
+      <span title="Quick estimate from your skills, title and experience - press Score for Claude's rating"
+        className={`inline-flex ${dim} items-center justify-center rounded-full border border-dashed border-slate-300 font-medium text-slate-500`}>
+        ~{estimate}
+      </span>
+    );
+  }
   const cls =
     score >= 70 ? "bg-emerald-100 text-emerald-700" : score >= 50 ? "bg-amber-100 text-amber-700" : "bg-slate-100 text-slate-500";
   const dim = size === "lg" ? "size-14 text-xl" : "size-9 text-sm";

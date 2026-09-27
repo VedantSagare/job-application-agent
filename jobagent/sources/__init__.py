@@ -64,5 +64,7 @@ def discover(only: str | None = None) -> int:
 
     kept = [j for j in jobs if _keep(j)]
     inserted = db.upsert_jobs(kept)
+    from jobagent import prefit
+    prefit.update()  # quick fit estimate for the new jobs (no Claude call)
     log.info(f"Discovered {len(jobs)} jobs, {len(kept)} passed filters, {inserted} new")
     return inserted

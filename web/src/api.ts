@@ -8,6 +8,7 @@ export interface JobSummary {
   location: string | null;
   status: Status;
   score: number | null;
+  prefit: number | null; // quick fit estimate (no Claude), for jobs not scored yet
   url: string;
   apply_url: string | null;
   posted_at: string | null;
