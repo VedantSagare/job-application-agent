@@ -1,0 +1,163 @@
+# Job Application Agent
+
+An AI agent that finds jobs, scores them against your resume, tailors your resume and cover letter
+for the jobs you pick, and pre-fills application forms in a real browser. **It never submits an
+application: you review every form and click Submit yourself.**
+
+Powered by Claude (via your Claude subscription or the Anthropic API), Playwright, FastAPI and a React dashboard.
+
+```
+ Search                Score                 Tailor (per job)          Auto-fill (per job)         You
+ career sites   ──►   Claude rates   ──►    resume + cover letter ──► opens the form in    ──►   review &
+ LinkedIn, Naukri      each job 0-100        in your resume's layout    Chrome and fills it        Submit
+```
+
+## Features
+
+- **Job discovery**
+  - Company career sites via the public Greenhouse, Lever and Ashby job-board APIs (no scraping)
+  - LinkedIn public job search and Naukri search
+  - Location filter: e.g. *India + remote jobs open to India* (drops "US - Remote" and the like)
+  - Title filters, de-duplication across sources, India/remote-first ordering
+- **Match scoring** – Claude rates each job against your resume with reasons and gaps, so you spend time on real fits
+- **Resume tailoring on demand** – one click per job:
+  - Reorders and rephrases your experience in the job's terminology and rewrites the headline/summary
+  - Optionally adds job-relevant skills to the Skills section, always listed for you to review
+  - Never changes employers, titles, dates, degrees or metrics
+  - Renders in the same layout as your own resume, fitted to one page, plus a cover letter
+- **Form auto-fill**
+  - Reads every field, including custom dropdowns, radio groups and file uploads
+  - Answers from your resume and a small facts file (notice period, CTC, work authorization, ...)
+  - Uploads the resume first so the site can prefill; makes multiple passes for fields that appear
+    later; checks every value stuck
+  - Anything it can't answer truthfully, plus legal consents, is outlined in red for you
+  - Greenhouse, Lever, Ashby and most company forms
+  - LinkedIn Easy Apply (fills each step, clicks Next, stops at Submit) and "apply on company site"
+- **Dashboard** – search with your settings, live progress log, results table, job details with the
+  tailored PDF, and buttons for every action. No terminal needed.
+
+## Screens
+
+| Page | What you do there |
+|---|---|
+| **Search & jobs** | Set keywords, locations and sources, press **Search**, and watch the live log. Results land in tabs: Matches, Applied, Not scored yet, Low match, All. |
+| **Job details** (click a row) | Match reasons and gaps, and buttons: **Tailor resume**, **Tailor & auto-fill**, **Auto-fill application**, **Mark applied**, **Dismiss**. Also the tailored resume PDF with a list of changes and added skills, the cover letter and the job description. |
+| **My resume** | Upload your resume PDF; see your original next to the tailoring template. |
+| **Settings** | Minimum match score, skipped titles, company lists, form answers, Claude effort levels. |
+
+## Requirements
+
+- Windows 10/11 (macOS/Linux work too, but the launcher is a `.bat`)
+- Python 3.11+
+- Google Chrome (or Microsoft Edge)
+- Claude access, one of:
+  - a **Claude Pro/Max subscription** with [Claude Code](https://claude.com/claude-code) installed and
+    signed in (the CLI bundled with the VS Code extension is detected automatically), or
+  - an **Anthropic API key** with credits
+- Node.js 18+ only if you want to change the dashboard UI (a built copy is included)
+
+## Setup
+
+```powershell
+git clone https://github.com/VedantSagare/job-application-agent.git
+cd job-application-agent
+python -m venv .venv
+.venv\Scripts\pip install -r requirements.txt
+.venv\Scripts\python -m jobagent init        # creates config.yaml and .env from the examples
+```
+
+1. **Claude:** leave `llm.backend: subscription` in `config.yaml` to use your Claude subscription, or
+   set `llm.backend: api` and put `ANTHROPIC_API_KEY=...` in `.env`.
+2. **Settings:** edit `config.yaml` (or use the dashboard's Settings page later) – keywords,
+   locations, companies and the `applicant:` answers used for forms.
+3. **Start the dashboard:** double-click **`Job Agent Dashboard.bat`** (or run
+   `.venv\Scripts\python -m jobagent web`). It opens at http://localhost:8600.
+4. **Upload your resume** on the **My resume** page. Check the parsed data (**Edit data**) – every
+   tailored resume is built from it.
+
+## Using it
+
+1. **Search & jobs → Search.** Optionally score the new jobs right away (~10 s per job).
+2. Open a job from **Matches** and read why it fits.
+3. Click **Tailor resume** (~30–60 s). Review the PDF, the change list and any **Added skills**.
+4. Click **Auto-fill application**. A Chrome window opens with the form filled:
+   - **red** outline = needs your answer · **orange** = couldn't be filled automatically
+   - **LinkedIn:** log in once in the agent's Chrome window (it waits, then remembers). Easy Apply is
+     filled step by step and stops at *Submit application*.
+   - **Naukri:** its Apply button submits instantly with your Naukri profile, so the agent never
+     clicks it. Click Apply yourself, then **Fill current page** if a questionnaire opens.
+   - Multi-step forms: after moving to the next page, click **Fill current page**.
+5. Click **Submit** in the browser yourself, then **Mark applied** in the dashboard.
+
+### Command line (optional)
+
+```powershell
+python -m jobagent discover [--source companies,linkedin,naukri]
+python -m jobagent score --limit 30
+python -m jobagent tailor --job <id>
+python -m jobagent apply            # interactive terminal version of auto-fill
+python -m jobagent status
+python -m jobagent web              # dashboard
+```
+
+### Adding companies
+
+Read the board name from the company's careers URL and add it in Settings (or `config.yaml`):
+
+| ATS        | Careers URL looks like              | config key   |
+|------------|-------------------------------------|--------------|
+| Greenhouse | `job-boards.greenhouse.io/<name>`   | `greenhouse` |
+| Lever      | `jobs.lever.co/<name>`              | `lever`      |
+| Ashby      | `jobs.ashbyhq.com/<name>`           | `ashby`      |
+
+Workday/Taleo portals need an account per company: open the job from the dashboard and use the tailored PDF.
+
+## Project structure
+
+```
+jobagent/
+  sources/          job discovery: ats.py (Greenhouse/Lever/Ashby), linkedin.py, naukri.py, location.py
+  matcher.py        Claude match scoring
+  resume.py         resume parsing, tailoring, one-page PDF rendering
+  templates/        resume HTML template
+  apply.py          form reading + Claude answers + filling (multi-pass, verified)
+  linkedin_apply.py LinkedIn Easy Apply / external-apply flow
+  llm.py            Claude calls (subscription via Claude Code CLI, or Anthropic API) -> Pydantic models
+  server.py         FastAPI backend for the dashboard
+  tasks.py          background tasks with live logs
+  db.py             SQLite job tracker
+  cli.py            command-line entry point
+web/                React + TypeScript + Tailwind dashboard (built copy in web/dist)
+config.example.yaml all settings, documented
+```
+
+Your personal files are never committed: `config.yaml`, `.env`, `profile/` (resume), `output/`
+(tailored resumes), `data/` (job database) and the browser profile are in `.gitignore`.
+
+### Changing the dashboard UI
+
+```powershell
+cd web
+npm install
+npm run dev      # live reload at http://localhost:5173 (keep `python -m jobagent web` running)
+npm run build    # updates web/dist, served by the Python app
+```
+
+## Safeguards and limits
+
+- **Human in the loop:** the agent never clicks a final Submit button.
+- **Truthful answers:** form answers come only from your resume and the facts you enter; salaries,
+  notice period, date of birth etc. are never guessed. Legal consents are always left to you.
+- **Tailoring:** employers, titles, dates, degrees and numbers are never changed. Added skills (on by
+  default, `llm.allow_added_skills`) go only in the Skills section and are listed per job, so be ready
+  to discuss them in interviews, or turn the option off.
+- **LinkedIn / Naukri terms of service** prohibit automated tools. Discovery reads public pages with
+  rate limiting and applying stays one job at a time with a manual submit, but heavy use can still get
+  an account restricted. Use it moderately.
+- **Usage:** on the subscription backend, every score/tailor/fill counts toward your plan's usage
+  limits; lower the effort settings if you run large batches.
+
+## Tech stack
+
+Python · Claude (Claude Code CLI / Anthropic SDK, structured outputs) · Playwright · FastAPI ·
+SQLite · Jinja2 · React 19 · TypeScript · Tailwind CSS · Vite

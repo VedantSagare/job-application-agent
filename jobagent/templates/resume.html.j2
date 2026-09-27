@@ -1,0 +1,116 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>{{ r.name }} - Resume</title>
+<style>
+  /* Mirrors the layout of the candidate's own resume. ATS-friendly: real text, single column,
+     standard section names, no images. */
+  * { box-sizing: border-box; }
+  :root { --accent: #2b5c8f; --muted: #555; }
+  body { font-family: "DejaVu Sans", "Segoe UI", Arial, sans-serif; font-size: 8.2pt; color: #1a1a1a;
+         line-height: 1.3; margin: 0; }
+  a { color: var(--accent); text-decoration: none; }
+  b.num { color: var(--accent); }
+  h1 { font-size: 21pt; margin: 0; letter-spacing: .4px; text-transform: uppercase; }
+  .headline { color: var(--accent); font-weight: 700; font-size: 11.5pt; margin: 2px 0 3px; }
+  .contact { color: var(--muted); font-size: 8pt; }
+  .sep { margin: 0 6px; color: #999; }
+  h2 { color: var(--accent); font-size: 10.2pt; text-transform: uppercase; letter-spacing: .6px;
+       border-bottom: 1.3px solid var(--accent); margin: 8px 0 3px; padding-bottom: 1px; }
+  p { margin: 0; text-align: justify; }
+  .row { display: flex; justify-content: space-between; gap: 14px; }
+  .title { font-weight: 700; }
+  .org { font-weight: 700; color: var(--accent); white-space: nowrap; }
+  .sub { font-style: italic; color: var(--muted); }
+  .when { font-style: italic; color: var(--muted); white-space: nowrap; }
+  ul { margin: 2px 0 5px 14px; padding: 0; }
+  li { margin: 1px 0; text-align: justify; }
+  .item { margin-bottom: 3px; page-break-inside: avoid; }
+  table.skills { border-collapse: collapse; }
+  table.skills td { padding: 1px 0; vertical-align: top; }
+  table.skills td.cat { font-weight: 700; width: 92px; padding-right: 8px; }
+  .tech { font-weight: 700; font-style: italic; color: var(--muted); font-size: 8.3pt; }
+  .dots { text-align: justify; }
+</style>
+</head>
+<body>
+  {% set competencies = r.skills | selectattr("category", "equalto", "Core Competencies") | list %}
+  {% set skill_groups = r.skills | rejectattr("category", "equalto", "Core Competencies") | list %}
+
+  <h1>{{ r.name }}</h1>
+  {% if r.headline %}<div class="headline">{{ r.headline }}</div>{% endif %}
+  <div class="contact">
+    {%- set sep = joiner('<span class="sep">|</span>') %}
+    {%- if r.location %}{{ sep() | safe }}{{ r.location }}{% endif %}
+    {{- sep() | safe }}{{ r.email }}
+    {%- if r.phone %}{{ sep() | safe }}{{ r.phone }}{% endif %}
+    {%- for l in r.links %}{{ sep() | safe }}<a href="{{ l.url if l.url.startswith('http') else 'https://' ~ l.url }}">{{ l.url | replace("https://", "") | replace("www.", "") }}</a>{% endfor %}
+  </div>
+
+  {% if r.summary %}
+  <h2>Professional Summary</h2>
+  <p>{{ r.summary | md }}</p>
+  {% endif %}
+
+  {% if skill_groups %}
+  <h2>Technical Skills</h2>
+  <table class="skills">
+    {% for g in skill_groups if g.items %}
+    <tr><td class="cat">{{ g.category }}</td><td>{{ g.items | join(", ") }}</td></tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+
+  {% if r.experience %}
+  <h2>Professional Experience</h2>
+  {% for e in r.experience %}
+  <div class="item">
+    <div class="row"><span class="title">{{ e.title }}</span><span class="org">{{ e.company }}</span></div>
+    <div class="row">
+      <span class="sub">{{ e.team or "" }}</span>
+      <span class="when">{{ e.start }} – {{ e.end }}{% if e.location %} | {{ e.location }}{% endif %}</span>
+    </div>
+    <ul>{% for b in e.bullets %}<li>{{ b | md }}</li>{% endfor %}</ul>
+  </div>
+  {% endfor %}
+  {% endif %}
+
+  {% if r.projects %}
+  <h2>Projects</h2>
+  {% for p in r.projects %}
+  <div class="item">
+    <div class="row">
+      <span class="title">{{ p.name }}{% if p.tech %} <span class="tech">({{ p.tech | join(", ") }})</span>{% endif %}</span>
+      {% if p.url %}<a href="{{ p.url if p.url.startswith('http') else 'https://' ~ p.url }}">{{ p.url | replace("https://", "") }}</a>{% endif %}
+    </div>
+    <ul>{% for b in p.bullets %}<li>{{ b | md }}</li>{% endfor %}</ul>
+  </div>
+  {% endfor %}
+  {% endif %}
+
+  {% if r.education %}
+  <h2>Education</h2>
+  {% for ed in r.education %}
+  <div class="item">
+    <div class="row"><span class="title">{{ ed.degree }}</span>
+      <span class="when" style="font-style:normal">{% if ed.start %}{{ ed.start }} – {% endif %}{{ ed.end or "" }}</span></div>
+    <div>{{ ed.institution }}{% if ed.details %}&nbsp;&nbsp;|&nbsp;&nbsp;{{ ed.details }}{% endif %}</div>
+  </div>
+  {% endfor %}
+  {% endif %}
+
+  {% if r.certifications or r.achievements %}
+  <h2>Certifications &amp; Awards</h2>
+  <ul>
+    {% for c in r.certifications %}<li>{{ c | md }}</li>{% endfor %}
+    {% for a in r.achievements %}<li>{{ a | md }}</li>{% endfor %}
+  </ul>
+  {% endif %}
+
+  {% if competencies and competencies[0]["items"] %}
+  <h2>Core Competencies</h2>
+  <div class="dots">{{ competencies[0]["items"] | join("&nbsp;&nbsp;•&nbsp;&nbsp;" | safe) }}</div>
+  {% endif %}
+</body>
+</html>
