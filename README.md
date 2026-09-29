@@ -15,8 +15,13 @@ Powered by Claude (via your Claude subscription or the Anthropic API), Playwrigh
 ## Features
 
 - **Job discovery**
-  - Company career sites via the public job feeds of Greenhouse, Lever, Ashby, **Workday**,
-    SmartRecruiters and Workable (no login, no scraping of search pages)
+  - **Company career portals directly** – paste any company's careers URL and the agent searches that
+    company's own site with your keywords. It detects the site type automatically:
+    - Amazon, Google, Apple, Microsoft & Qualcomm (Eightfold), JPMorgan (Oracle Recruiting), Swiggy (MyNextHire)
+    - careers pages that embed a Greenhouse, Lever, Ashby, Workday, SmartRecruiters or Workable board
+      (e.g. Razorpay → Greenhouse, PhonePe → SmartRecruiters)
+    - any other careers site: searched in a hidden browser, with Claude picking the relevant job links
+  - Plus the public job feeds of Greenhouse, Lever, Ashby, Workday, SmartRecruiters and Workable boards
   - LinkedIn public job search, Naukri search and Instahyre (skills-based search via its public job API)
   - Location filter: e.g. *India + remote jobs open to India* (drops "US - Remote" and the like)
   - Title filters, de-duplication across sources, India/remote-first ordering
@@ -107,6 +112,22 @@ Instahyre searches by **skills** rather than job titles. Set them in `config.yam
 `sources.instahyre`: `skills` (e.g. `[Java, Spring Boot]`), `job_functions` (10 = Backend,
 1 = Full-Stack, 76 = Other Software Development) and `years` (blank = your experience from the form answers).
 
+### Adding company career portals
+
+In **Settings → Career portals (any company)**, paste `Name | careers URL`, for example:
+
+```
+Amazon | https://www.amazon.jobs/en/
+JPMorgan Chase | https://jpmc.fa.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1001/jobs
+Atlassian | https://www.atlassian.com/company/careers/all-jobs
+```
+
+The first search detects the site type and remembers it (`data/portal_cache.json`). Tips for sites the
+agent has to browse: paste the page that lists jobs (not the company homepage); if the site's search puts
+the keyword in the URL, you can paste that URL with `{keyword}` in place of the search term, e.g.
+`https://careers.example.com/search?q={keyword}&location=India`. Browsed sites use one Claude call per
+company per search, and jobs whose location can't be confirmed as India/remote are skipped.
+
 ### Adding companies
 
 Add a company in **Settings → Company career sites** (or under `sources.companies` in `config.yaml`):
@@ -130,7 +151,8 @@ those jobs usually reach you through LinkedIn, Naukri or Instahyre.
 
 ```
 jobagent/
-  sources/          job discovery: ats.py (Greenhouse/Lever/Ashby), ats_more.py (Workday/
+  sources/          job discovery: portals.py (any careers URL: detection + Amazon, Google, Apple,
+                    Eightfold, Oracle, MyNextHire, generic), ats.py (Greenhouse/Lever/Ashby), ats_more.py (Workday/
                     SmartRecruiters/Workable), linkedin.py, naukri.py,
                     instahyre.py, location.py
   matcher.py        Claude match scoring

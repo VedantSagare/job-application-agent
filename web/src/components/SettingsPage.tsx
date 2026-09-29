@@ -86,6 +86,8 @@ export function SettingsPage() {
       <Section title="Company career sites" hint="Companies scanned directly on their own career sites. Workday and SmartRecruiters companies are searched with your keywords; the others list all open roles.">
         <div className="grid gap-4">
           {([
+            ["portals", "Career portals (any company)",
+              "paste the company's careers URL, e.g. Amazon | https://www.amazon.jobs - the agent detects the site type"],
             ["greenhouse", "Greenhouse", "board name from job-boards.greenhouse.io/NAME"],
             ["lever", "Lever", "board name from jobs.lever.co/NAME"],
             ["ashby", "Ashby", "board name from jobs.ashbyhq.com/NAME"],
@@ -95,7 +97,7 @@ export function SettingsPage() {
           ] as const).map(([ats, label, hint]) => (
             <div key={ats}>
               <Label hint={hint}>{label}</Label>
-              <TagInput value={companies[ats] ?? []} placeholder={ats === "workday" ? "paste a careers URL" : "name"}
+              <TagInput value={companies[ats] ?? []} placeholder={ats === "workday" || ats === "portals" ? "Name | careers URL" : "name"}
                 onChange={(v) => set((c) => { c.sources.companies = { ...c.sources.companies, [ats]: v }; })} />
             </div>
           ))}

@@ -43,6 +43,8 @@ def discover(only: str | None = None) -> int:
                       transport=httpx.HTTPTransport(retries=3)) as http:
         if "companies" in wanted:
             jobs += ats.fetch_companies(cfg("sources.companies", {}), http, keywords)
+            from jobagent.sources import portals
+            jobs += portals.fetch_portals(cfg("sources.companies.portals", []), http, keywords)
         if "linkedin" in wanted and (only or cfg("sources.linkedin.enabled", True)):
             jobs += linkedin.search(keywords, locations, cfg("sources.linkedin.pages", 1),
                                     cfg("search.max_age_days", 14), http)

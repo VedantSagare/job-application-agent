@@ -13,7 +13,9 @@ const TABS: { id: string; label: string; statuses: Status[] }[] = [
 
 const SOURCE_LABEL: Record<string, string> = {
   greenhouse: "Career site", lever: "Career site", ashby: "Career site", workday: "Career site",
-  smartrecruiters: "Career site", workable: "Career site", linkedin: "LinkedIn", naukri: "Naukri", instahyre: "Instahyre",
+  smartrecruiters: "Career site", workable: "Career site", amazon: "Career site", google: "Career site",
+  apple: "Career site", eightfold: "Career site", oracle: "Career site", mynexthire: "Career site",
+  portal: "Career site", linkedin: "LinkedIn", naukri: "Naukri", instahyre: "Instahyre",
 };
 
 // Claude's score where there is one. The quick estimate runs high (jobs estimated 70+ average ~60 from

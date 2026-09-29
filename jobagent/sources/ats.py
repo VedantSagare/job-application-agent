@@ -89,6 +89,8 @@ def fetch_companies(companies: dict[str, list[str]], http: httpx.Client,
                     keywords: list[str] | None = None) -> list[Job]:
     out: list[Job] = []
     for ats, slugs in (companies or {}).items():
+        if ats == "portals":
+            continue  # handled by sources/portals.py
         fetch = FETCHERS.get(ats)
         keyword_fetch = KEYWORD_FETCHERS.get(ats)
         if not fetch and not keyword_fetch:

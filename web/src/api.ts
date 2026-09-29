@@ -52,7 +52,7 @@ export interface Config {
   sources: {
     linkedin: { enabled: boolean; pages: number };
     naukri: { enabled: boolean; pages: number };
-    companies: Partial<Record<"greenhouse" | "lever" | "ashby" | "workday" | "smartrecruiters" | "workable", string[]>>;
+    companies: Partial<Record<"portals" | "greenhouse" | "lever" | "ashby" | "workday" | "smartrecruiters" | "workable", string[]>>;
   };
   applicant: Record<string, string>;
   llm: { score_effort: string; tailor_effort: string; form_effort: string; [k: string]: unknown };

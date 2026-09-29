@@ -52,7 +52,16 @@ sources:
   #   Lever:      https://jobs.lever.co/<slug>
   #   Ashby:      https://jobs.ashbyhq.com/<slug>
   workday_pages: 2 # Workday: result pages (20 jobs each) per company per keyword
+  portal_pages: 2  # Career portals: result pages per keyword
   companies:
+    # Career portals: paste ANY company's careers URL ('Name | URL'). The agent detects the site:
+    # Amazon, Google, Apple, Eightfold (Microsoft, Qualcomm...), Oracle (JPMorgan...), MyNextHire (Swiggy...),
+    # or an embedded Greenhouse/Lever/Workday/... board. Other sites are searched in a hidden browser
+    # with Claude picking the job links (slower; one Claude call per company per search).
+    portals:
+    - Amazon | https://www.amazon.jobs/en/
+    - Google | https://www.google.com/about/careers/applications/jobs/results
+    - Microsoft | https://apply.careers.microsoft.com/careers
     greenhouse: [stripe, databricks]
     lever: [palantir]
     ashby: [ramp]
