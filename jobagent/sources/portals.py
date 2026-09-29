@@ -291,6 +291,80 @@ def mynexthire(company: str, tenant: str, http: httpx.Client, keywords: list[str
     return out
 
 
+# ================================================================ SAP SuccessFactors (Standard Chartered, SAP, ...)
+
+def _sf_locale(html: str) -> str:
+    m = re.search(r'"locale"\s*:\s*"([a-z]{2}_[A-Z]{2})"', html) or re.search(r'<html[^>]*lang="([a-z]{2})[-_]([A-Z]{2})"', html)
+    if not m:
+        return "en_US"
+    return m.group(1) if m.lastindex == 1 else f"{m.group(1)}_{m.group(2)}"
+
+
+def _sf_description(http: httpx.Client, url: str) -> str:
+    try:
+        soup = BeautifulSoup(http.get(url).text, "html.parser")
+    except httpx.HTTPError:
+        return ""
+    el = soup.select_one("[itemprop=description], .jobdescription, #job-description, .job-description")
+    return el.get_text("\n", strip=True) if el else ""
+
+
+def successfactors(company: str, url: str, http: httpx.Client, keywords: list[str]) -> list[Job]:
+    """SuccessFactors career sites: the newer search API (needs the site's session + CSRF token), or the
+    older server-rendered result list as a fallback."""
+    u = urlparse(url)
+    base = f"{u.scheme or 'https'}://{u.netloc}"
+    location = "India" if _india() else ""
+    page = http.get(f"{base}/search/", params={"q": "", "locationsearch": location})
+    token = re.search(r'CSRFToken\s*[=:]\s*["\']([0-9a-f-]{20,})["\']', page.text)
+    locale = _sf_locale(page.text)
+    found: dict[str, dict] = {}
+    for kw in keywords:
+        for n in range(_pages()):
+            batch: list[dict] = []
+            if token:
+                r = http.post(f"{base}/services/recruiting/v1/jobs", headers={"x-csrf-token": token.group(1)},
+                              json={"locale": locale, "pageNumber": n, "sortBy": "", "keywords": kw,
+                                    "location": location, "facetFilters": {}, "brand": "", "skills": [],
+                                    "categoryId": 0, "alertId": "", "rcmCandidateId": ""})
+                if r.status_code == 200:
+                    for res in r.json().get("jobSearchResult") or []:
+                        j = res.get("response") or {}
+                        batch.append({"id": str(j.get("id")), "title": j.get("unifiedStandardTitle") or "",
+                                      "location": "; ".join(x.strip() for x in j.get("jobLocationShort") or []),
+                                      "url": f"{base}/job/{j.get('urlTitle')}/{j.get('id')}-{locale}",
+                                      "posted": j.get("unifiedStandardStart")})
+            if not token or not batch and n == 0:
+                # Older SuccessFactors sites render the result table on the server.
+                soup = BeautifulSoup(http.get(f"{base}/search/", params={
+                    "q": kw, "locationsearch": location, "startrow": n * 25}).text, "html.parser")
+                for a in soup.select("a.jobTitle-link"):
+                    row = a.find_parent("tr") or a.find_parent("li")
+                    loc = row.select_one(".jobLocation") if row else None
+                    href = urljoin(base, a.get("href", ""))
+                    batch.append({"id": href, "title": a.get_text(strip=True),
+                                  "location": loc.get_text(" ", strip=True) if loc else "", "url": href,
+                                  "posted": None})
+            for j in batch:
+                found.setdefault(j["id"], j)
+            if len(batch) < 10:
+                break
+            _pause()
+    out = []
+    for jid, j in found.items():
+        if not _title_ok(j["title"]) or not _location_ok(j["location"], "successfactors"):
+            continue
+        _pause()
+        out.append(_job("successfactors", company, jid, j["title"], j["location"], j["url"],
+                        _sf_description(http, j["url"]), j["posted"]))
+    return out
+
+
+def _is_successfactors(html: str) -> bool:
+    low = html.lower()
+    return "successfactors" in low and ("rmk" in low or "jobtitle-link" in low or "/services/recruiting" in low)
+
+
 # ================================================================ Generic careers page (hidden Chrome + Claude)
 
 class PortalLink(BaseModel):
@@ -325,6 +399,18 @@ def _gather(page, links: dict[str, dict]) -> None:
         links.setdefault(_key(link["href"]), link)
 
 
+def _open(page, url: str, settle_ms: int = 1500) -> None:
+    """Load a page without waiting for full network silence (some sites never go idle)."""
+    from playwright.sync_api import TimeoutError as PWTimeout
+
+    page.goto(url, wait_until="domcontentloaded", timeout=45000)
+    try:
+        page.wait_for_load_state("networkidle", timeout=8000)
+    except PWTimeout:
+        pass
+    page.wait_for_timeout(settle_ms)
+
+
 def _collect_links(page, url: str, keywords: list[str], max_listing_pages: int = 5) -> list[dict]:
     """Search the careers site for each keyword (URL template or on-page search box), and follow a few
     'see all jobs' / category links when the landing page itself doesn't list jobs."""
@@ -335,15 +421,15 @@ def _collect_links(page, url: str, keywords: list[str], max_listing_pages: int =
     for kw in keywords:
         try:
             if "{keyword}" in url:
-                page.goto(url.replace("{keyword}", quote_plus(kw)), wait_until="networkidle", timeout=45000)
+                _open(page, url.replace("{keyword}", quote_plus(kw)))
                 searched = True
             else:
-                page.goto(url, wait_until="networkidle", timeout=45000)
+                _open(page, url)
                 box = page.locator(SEARCH_BOX).first
                 if box.count() and box.is_visible():
                     box.fill(kw)
                     box.press("Enter")
-                    page.wait_for_load_state("networkidle", timeout=20000)
+                    page.wait_for_timeout(4000)
                     searched = True
             page.wait_for_timeout(1500)
             _gather(page, links)
@@ -359,7 +445,7 @@ def _collect_links(page, url: str, keywords: list[str], max_listing_pages: int =
                                                            l["href"], re.I))]
         for l in listing[:max_listing_pages]:
             try:
-                page.goto(l["href"], wait_until="networkidle", timeout=45000)
+                _open(page, l["href"], 2000)
                 page.wait_for_timeout(2000)
                 _gather(page, links)
             except PWError:
@@ -457,6 +543,7 @@ def generic(company: str, url: str, http: httpx.Client, keywords: list[str]) -> 
 # ================================================================ detection + dispatch
 
 EMBEDDED = [  # careers pages that embed a known job board
+    (r"(?:boards|job-boards)\.eu\.greenhouse\.io/(?:embed/job_board\?for=)?([A-Za-z0-9_-]+)", "greenhouse_eu"),
     (r"(?:boards|job-boards)\.greenhouse\.io/(?:embed/job_board\?for=)?([A-Za-z0-9_-]+)", "greenhouse"),
     (r"jobs\.lever\.co/([A-Za-z0-9_-]+)", "lever"),
     (r"jobs\.ashbyhq\.com/([A-Za-z0-9_.-]+)", "ashby"),
@@ -493,18 +580,24 @@ def detect(url: str, http: httpx.Client) -> dict:
     try:  # does the careers page embed a known job board?
         found = _embedded_board(http.get(url.replace("{keyword}", ""), timeout=20).text)
         if found:
-            return found
+            return {**found, "arg": found["arg"] or url}
     except httpx.HTTPError:
         pass
     found = _embedded_board_rendered(url.replace("{keyword}", ""))
-    return found or {"kind": "generic", "arg": url}
+    if found:
+        return {**found, "arg": found["arg"] or url}
+    return {"kind": "generic", "arg": url}
 
 
 def _embedded_board(text: str) -> dict | None:
     for pattern, kind in EMBEDDED:
         for m in re.finditer(pattern, text):
             if m.group(1).lower() not in ("embed", "js", "static", "v1", "api"):
+                if kind == "greenhouse_eu":
+                    return {"kind": "greenhouse", "arg": f"eu:{m.group(1)}"}
                 return {"kind": kind, "arg": m.group(1)}
+    if _is_successfactors(text):
+        return {"kind": "successfactors", "arg": None}
     return None
 
 
@@ -519,8 +612,7 @@ def _embedded_board_rendered(url: str) -> dict | None:
     try:
         with headless_page() as page:
             page.on("request", lambda r: requests.append(r.url))
-            page.goto(url, wait_until="networkidle", timeout=45000)
-            page.wait_for_timeout(2500)
+            _open(page, url, 2500)
             text = page.content() + "\n" + "\n".join(f.url for f in page.frames) + "\n" + "\n".join(requests)
     except PWError:
         return None
@@ -528,6 +620,7 @@ def _embedded_board_rendered(url: str) -> dict | None:
 
 
 ADAPTERS = {"amazon": amazon, "google": google, "apple": apple, "oracle": oracle, "mynexthire": mynexthire,
+            "successfactors": successfactors,
             "generic": generic}
 
 

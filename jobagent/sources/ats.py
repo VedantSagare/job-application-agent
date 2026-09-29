@@ -12,7 +12,15 @@ from jobagent.sources.common import html_to_text, log
 
 
 def greenhouse(slug: str, http: httpx.Client) -> list[Job]:
-    r = http.get(f"https://boards-api.greenhouse.io/v1/boards/{slug}/jobs", params={"content": "true"})
+    """`slug` is the board name; prefix "eu:" for boards on Greenhouse's EU servers (job-boards.eu.greenhouse.io)."""
+    region = ""
+    if slug.startswith("eu:"):
+        region, slug = ".eu", slug[3:]
+    try:
+        r = http.get(f"https://boards-api{region}.greenhouse.io/v1/boards/{slug}/jobs", params={"content": "true"})
+    except httpx.ConnectError:
+        # Some networks can't reach the board API host; the public board page lists the same jobs.
+        return _greenhouse_board_page(slug, region, http)
     r.raise_for_status()
     jobs = []
     for j in r.json().get("jobs", []):
@@ -25,10 +33,43 @@ def greenhouse(slug: str, http: httpx.Client) -> list[Job]:
             url=j["absolute_url"],
             # The embeddable form never redirects to the company's own careers site
             # (the regular job-boards page often does), so the form is always on the page.
-            apply_url=f"https://job-boards.greenhouse.io/embed/job_app?for={slug}&token={j['id']}",
+            apply_url=f"https://job-boards{region}.greenhouse.io/embed/job_app?for={slug}&token={j['id']}",
             description=html_to_text(html.unescape(j.get("content") or "")),
             posted_at=j.get("first_published") or j.get("updated_at"),
         ))
+    return jobs
+
+
+def _greenhouse_board_page(slug: str, region: str, http: httpx.Client) -> list[Job]:
+    from bs4 import BeautifulSoup
+
+    board = f"https://job-boards{region}.greenhouse.io/{slug}"
+    jobs, seen = [], set()
+    for page in range(1, 6):
+        soup = BeautifulSoup(http.get(board, params={"page": page}).text, "html.parser")
+        rows = soup.select("tr.job-post")
+        new = 0
+        for tr in rows:
+            a = tr.select_one("a[href]")
+            texts = [p.get_text(" ", strip=True) for p in tr.select("p")]
+            if not a or not texts or a["href"] in seen:
+                continue
+            seen.add(a["href"])
+            new += 1
+            job_id = a["href"].rstrip("/").split("/")[-1]
+            detail = BeautifulSoup(http.get(a["href"]).text, "html.parser").select_one(".job__description")
+            jobs.append(Job(
+                source="greenhouse",
+                external_id=f"{slug}:{job_id}",
+                company=slug.title(),
+                title=texts[0],
+                location=texts[1] if len(texts) > 1 else None,
+                url=a["href"],
+                apply_url=f"https://job-boards{region}.greenhouse.io/embed/job_app?for={slug}&token={job_id}",
+                description=detail.get_text("\n", strip=True) if detail else "",
+            ))
+        if not new:
+            break
     return jobs
 
 
