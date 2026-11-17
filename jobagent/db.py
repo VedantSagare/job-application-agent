@@ -82,9 +82,14 @@ def connect() -> sqlite3.Connection:
 
 def upsert_jobs(jobs: Iterable[Job]) -> int:
     """Insert new jobs; skip ones already stored or duplicated across sources. Returns # inserted."""
+    from jobagent.dates import parse_posted
+
     inserted = 0
     with connect() as conn:
         for j in jobs:
+            posted = parse_posted(j.posted_at)
+            if posted:
+                j.posted_at = posted.isoformat()
             if conn.execute("SELECT 1 FROM jobs WHERE id = ?", (j.id,)).fetchone():
                 continue
             # Same company + title seen from another source (e.g. LinkedIn mirror of a Greenhouse post).

@@ -74,9 +74,12 @@ def workday(entry: str, http: httpx.Client, keywords: list[str]) -> list[Job]:
             _pause()
 
     jobs = []
+    from jobagent.dates import is_recent
+
+    max_age = cfg("search.max_age_days")
     for path, p in postings.items():
         title = p.get("title", "").strip()
-        if not path or not _title_ok(title):
+        if not path or not _title_ok(title) or not is_recent(p.get("postedOn"), max_age):
             continue
         # Cheap location pre-check: "India, Pune" or the path's location segment; "3 Locations" needs details.
         hint = f"{p.get('locationsText', '')} {path.split('/')[2] if path.count('/') > 2 else ''}".replace("-", " ")

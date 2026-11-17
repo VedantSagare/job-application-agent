@@ -30,6 +30,8 @@ from jobagent.sources.ats_more import _location_ok, _title_ok
 from jobagent.sources.common import html_to_text, log
 
 CACHE = DATA_DIR / "portal_cache.json"
+# Bump when detection learns new site types; sites cached as "generic" are then re-detected.
+DETECT_VERSION = 2
 JSON = {"Accept": "application/json"}
 
 
@@ -365,6 +367,112 @@ def _is_successfactors(html: str) -> bool:
     return "successfactors" in low and ("rmk" in low or "jobtitle-link" in low or "/services/recruiting" in low)
 
 
+# ================================================================ Rippling ATS (Rippling and other companies)
+
+def rippling(company: str, board: str, http: httpx.Client, keywords: list[str]) -> list[Job]:
+    """ats.rippling.com/<board>/jobs - lists every open role; filters run locally, details per kept job."""
+    api = f"https://api.rippling.com/platform/api/ats/v1/board/{board}/jobs"
+    r = http.get(api, headers=JSON)
+    r.raise_for_status()
+    out = []
+    for j in r.json():
+        title = (j.get("name") or "").strip()
+        loc = (j.get("workLocation") or {}).get("label", "") if isinstance(j.get("workLocation"), dict) else ""
+        if not _title_ok(title) or not _location_ok(loc, "rippling"):
+            continue
+        _pause()
+        try:
+            d = http.get(f"{api}/{j['uuid']}", headers=JSON).json()
+        except (httpx.HTTPError, ValueError):
+            d = {}
+        desc = d.get("description") or {}
+        desc = "\n\n".join(html_to_text(v) for v in desc.values() if isinstance(v, str)) if isinstance(desc, dict) \
+            else html_to_text(str(desc))
+        out.append(_job("rippling", company, j["uuid"], title, loc, j.get("url") or f"https://ats.rippling.com/{board}/jobs/{j['uuid']}",
+                        desc, d.get("createdOn")))
+    return out
+
+
+# ================================================================ Kula (Cashfree and other Indian companies)
+
+def kula(company: str, account: str, http: httpx.Client, keywords: list[str]) -> list[Job]:
+    """careers.kula.ai/<account> - every open role with description in a few list requests."""
+    out = []
+    for page in range(1, 6):
+        r = http.get("https://careers.kula.ai/api/internal/ats_job_posts", headers=JSON,
+                     params={"accountName": account, "page": page, "type": "ats_job_post.index", "items": 99})
+        r.raise_for_status()
+        posts = r.json().get("data") or []
+        for p in posts:
+            aj = p.get("ats_job") or {}
+            title = (p.get("title") or "").strip()
+            offices = [o.get("location") or o.get("name") or "" for o in aj.get("offices") or [] if isinstance(o, dict)]
+            loc = "; ".join(x.strip() for x in offices if x) + (" (Remote)" if aj.get("workplace") == "remote" else "")
+            if not _title_ok(title) or not _location_ok(loc, "kula"):
+                continue
+            out.append(_job("kula", company, str(p["id"]), title, loc, f"https://careers.kula.ai/{account}/{p['id']}",
+                            html_to_text(aj.get("job_description") or ""), p.get("launch_at")))
+        if len(posts) < 99:
+            break
+    return out
+
+
+# ================================================================ Juspay (own careers API)
+
+def juspay(company: str, url: str, http: httpx.Client, keywords: list[str]) -> list[Job]:
+    r = http.get("https://joinus.juspay.in/api/careerJobOpening", params={"limit": 1000}, headers=JSON)
+    r.raise_for_status()
+    out = []
+    for j in r.json().get("allJobs") or []:
+        title = (j.get("job_title") or "").replace("_", " ").strip()
+        loc = j.get("job_location") or ""
+        if str(j.get("opening_status", "open")).lower() in ("closed", "false") or not _title_ok(title) \
+                or not _location_ok(loc, "juspay"):
+            continue
+        exp = f"Experience: {j['experience_year']}+ years\n\n" if j.get("experience_year") else ""
+        out.append(_job("juspay", company, str(j.get("job_id") or title), title, loc,
+                        f"https://juspay.io/careers?job={j.get('job_id', '')}",
+                        exp + html_to_text(j.get("job_description_career") or "")))
+    return out
+
+
+# ================================================================ Uber (jobs.uber.com - API only answers inside a browser)
+
+def uber(company: str, url: str, http: httpx.Client, keywords: list[str]) -> list[Job]:
+    from jobagent.browser import headless_page
+
+    out = []
+    with headless_page() as page:
+        _open(page, "https://jobs.uber.com/en/jobs/", 2000)
+        for n in range(1, 120):  # ~10 roles per page; the API ignores keywords, so page through and filter here
+            status, text = page.evaluate(
+                "async (n) => { const r = await fetch('/api/jobs/search/?page=' + n); return [r.status, await r.text()]; }", n)
+            try:
+                data = json.loads(text)
+            except json.JSONDecodeError:
+                # Uber's site protection answers with a "Just a moment..." page when asked too often.
+                log.warning(f"portal Uber: site is rate-limiting (HTTP {status}) after {n - 1} pages - "
+                            f"keeping {len(out)} roles found so far; try again later")
+                break
+            jobs = data.get("jobs") or []
+            for j in jobs:
+                title = (j.get("Title") or "").strip()
+                locs = [", ".join(filter(None, [l.get("City"), l.get("Region"), l.get("Country")]))
+                        for l in j.get("Locations") or [] if isinstance(l, dict)]
+                loc = "; ".join(locs) + (" (Remote)" if str(j.get("Remote")).lower() == "true" else "")
+                if not _title_ok(title) or not _location_ok(loc, "uber"):
+                    continue
+                path = next((u.get("Url") for u in j.get("Urls") or [] if isinstance(u, dict)), f"/en/jobs/{j.get('Id')}/")
+                desc = "\n\n".join(html_to_text(j.get(k) or "") for k in ("Summary", "Description", "AdditionalText")
+                                   if j.get(k))
+                out.append(_job("uber", company, str(j.get("Id")), title, loc, f"https://jobs.uber.com{path}", desc,
+                                j.get("DisplayDate")))
+            if n >= (data.get("totalPages") or 1) or not jobs:
+                break
+            page.wait_for_timeout(random.randint(1200, 2200))  # gentle pacing to stay under Uber's rate limit
+    return out
+
+
 # ================================================================ Generic careers page (hidden Chrome + Claude)
 
 class PortalLink(BaseModel):
@@ -551,6 +659,9 @@ EMBEDDED = [  # careers pages that embed a known job board
     (r"(?:jobs|careers)\.smartrecruiters\.com/([A-Za-z0-9_-]+)", "smartrecruiters"),
     (r"apply\.workable\.com/([A-Za-z0-9_-]+)", "workable"),
     (r"https?://([a-z0-9-]+)\.mynexthire\.com", "mynexthire"),
+    (r"ats\.rippling\.com/([A-Za-z0-9_-]+)/jobs", "rippling"),
+    (r"careers\.kula\.ai/(?!api/)([A-Za-z0-9_-]+)", "kula"),
+    (r"accountName=([A-Za-z0-9_-]+)&page=\d+&type=ats_job_post", "kula"),
 ]
 
 
@@ -564,12 +675,19 @@ def _load_cache() -> dict:
 def detect(url: str, http: httpx.Client) -> dict:
     """{'kind': ..., 'arg': ...} describing how to search this careers URL."""
     host = urlparse(url if "//" in url else f"https://{url}").netloc.lower()
-    known = [("amazon.jobs", "amazon"), ("jobs.apple.com", "apple"), ("oraclecloud.com", "oracle")]
+    known = [("amazon.jobs", "amazon"), ("jobs.apple.com", "apple"), ("oraclecloud.com", "oracle"),
+             ("juspay.io", "juspay"), ("juspay.in", "juspay"), ("jobs.uber.com", "uber")]
     for needle, kind in known:
         if host.endswith(needle):
             return {"kind": kind, "arg": url}
     if host.endswith("google.com") and "careers" in url:
         return {"kind": "google", "arg": url}
+    if host.endswith("uber.com") and "careers" in url:
+        return {"kind": "uber", "arg": url}
+    # Own careers pages that hide the Greenhouse board they run on
+    for needle, board in (("stripe.com", "stripe"), ("rubrik.com", "rubrik")):
+        if host.endswith(needle):
+            return {"kind": "greenhouse", "arg": board}
     for pattern, kind in EMBEDDED:
         m = re.search(pattern, url)
         if m:
@@ -620,7 +738,7 @@ def _embedded_board_rendered(url: str) -> dict | None:
 
 
 ADAPTERS = {"amazon": amazon, "google": google, "apple": apple, "oracle": oracle, "mynexthire": mynexthire,
-            "successfactors": successfactors,
+            "successfactors": successfactors, "rippling": rippling, "kula": kula, "juspay": juspay, "uber": uber,
             "generic": generic}
 
 
@@ -631,8 +749,10 @@ def search_portal(entry: str, http: httpx.Client, keywords: list[str]) -> tuple[
     company = name.strip() or urlparse(url if "//" in url else f"https://{url}").netloc.split(".")[-2].title()
     cache = _load_cache()
     how = cache.get(url)
-    if not how:
-        how = detect(url, http)
+    # Re-detect sites that were only searchable through the browser fallback when detection has improved
+    # since (new connectors), so they move to a faster, more accurate connector automatically.
+    if not how or (how.get("kind") == "generic" and how.get("v") != DETECT_VERSION):
+        how = {**detect(url, http), "v": DETECT_VERSION}
         cache[url] = how
         DATA_DIR.mkdir(parents=True, exist_ok=True)
         CACHE.write_text(json.dumps(cache, indent=1), encoding="utf-8")

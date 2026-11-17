@@ -27,9 +27,24 @@ function ago(iso: string) {
   return d < 1 ? "today" : d < 2 ? "yesterday" : `${Math.floor(d)}d ago`;
 }
 
-export function JobsTable({ jobs, stats, selected, onSelect, running, onStarted }: {
+// Days since the company posted the job (posted_at is YYYY-MM-DD), or null when the site gave no date.
+function postedDaysAgo(j: JobSummary): number | null {
+  if (!j.posted_at || !/^\d{4}-\d{2}-\d{2}/.test(j.posted_at)) return null;
+  const [y, m, d] = j.posted_at.slice(0, 10).split("-").map(Number);
+  const today = new Date();
+  return Math.round((Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()) - Date.UTC(y, m - 1, d)) / 86400000);
+}
+
+function postedLabel(days: number): string {
+  return days <= 0 ? "today" : days === 1 ? "yesterday" : `${days}d ago`;
+}
+
+export const POSTED_OPTIONS: [number, string][] = [[0, "Any time"], [1, "Last 24 hours"], [3, "Last 3 days"],
+  [7, "Last 7 days"], [14, "Last 14 days"], [30, "Last 30 days"]];
+
+export function JobsTable({ jobs, stats, selected, onSelect, running, onStarted, postedWithin, setPostedWithin }: {
   jobs: JobSummary[]; stats: Stats | null; selected: string | null; onSelect: (id: string) => void;
-  running: boolean; onStarted: () => void;
+  running: boolean; onStarted: () => void; postedWithin: number; setPostedWithin: (days: number) => void;
 }) {
   const [tab, setTab] = useState("matches");
   const [query, setQuery] = useState("");
@@ -43,15 +58,24 @@ export function JobsTable({ jobs, stats, selected, onSelect, running, onStarted 
     return jobs
       .filter((j) => current.statuses.includes(j.status))
       .filter((j) => !q || `${j.company} ${j.title} ${j.location ?? ""}`.toLowerCase().includes(q))
+      .filter((j) => {
+        if (!postedWithin) return true;
+        const days = postedDaysAgo(j);
+        return days === null || days <= postedWithin; // no date on the site: can't tell, so keep it
+      })
       .sort((a, b) => {
-        if (sort === "newest") return b.discovered_at.localeCompare(a.discovered_at);
+        if (sort === "newest") return (b.posted_at ?? b.discovered_at).localeCompare(a.posted_at ?? a.discovered_at);
         if (sort === "company") return a.company.localeCompare(b.company) || a.title.localeCompare(b.title);
         // Best match: Claude's score where there is one, otherwise the quick estimate.
         return (fit(b) - fit(a)) || b.discovered_at.localeCompare(a.discovered_at);
       });
-  }, [jobs, current, query, sort]);
+  }, [jobs, current, query, sort, postedWithin]);
 
-  const count = (t: (typeof TABS)[number]) => jobs.filter((j) => t.statuses.includes(j.status)).length;
+  const inWindow = (j: JobSummary) => {
+    const days = postedDaysAgo(j);
+    return !postedWithin || days === null || days <= postedWithin;
+  };
+  const count = (t: (typeof TABS)[number]) => jobs.filter((j) => t.statuses.includes(j.status) && inWindow(j)).length;
 
   return (
     <Card>
@@ -67,10 +91,16 @@ export function JobsTable({ jobs, stats, selected, onSelect, running, onStarted 
             {t.label} <span className="ml-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">{count(t)}</span>
           </button>
         ))}
+        <select value={postedWithin} onChange={(e) => setPostedWithin(Number(e.target.value))}
+          title="Show jobs by when the company posted them"
+          className={`ml-auto mb-2 rounded-lg border px-2 py-1.5 text-sm ${postedWithin
+            ? "border-blue-400 bg-blue-50 text-blue-800" : "border-slate-300 bg-white text-slate-700"}`}>
+          {POSTED_OPTIONS.map(([d, label]) => <option key={d} value={d}>Posted: {label}</option>)}
+        </select>
         <select value={sort} onChange={(e) => setSort(e.target.value as typeof sort)} title="Sort order"
-          className="ml-auto mb-2 rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-700">
+          className="mb-2 rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-700">
           <option value="match">Best match first</option>
-          <option value="newest">Newest first</option>
+          <option value="newest">Newest posted first</option>
           <option value="company">Company A-Z</option>
         </select>
         <div className="mb-2 flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5">
@@ -112,7 +142,7 @@ export function JobsTable({ jobs, stats, selected, onSelect, running, onStarted 
                 <th className="px-2 py-2.5 font-medium">Location</th>
                 <th className="px-2 py-2.5 font-medium">Source</th>
                 <th className="px-2 py-2.5 font-medium">Status</th>
-                <th className="px-4 py-2.5 text-right font-medium">Found</th>
+                <th className="px-4 py-2.5 text-right font-medium">Posted</th>
               </tr>
             </thead>
             <tbody>
@@ -142,7 +172,11 @@ export function JobsTable({ jobs, stats, selected, onSelect, running, onStarted 
                       {STATUS_META[j.status].label}
                     </span>
                   </td>
-                  <td className="px-4 py-2.5 text-right text-slate-500">{ago(j.discovered_at)}</td>
+                  <td className="px-4 py-2.5 text-right text-slate-500">
+                    {postedDaysAgo(j) !== null
+                      ? <span title={`Posted ${j.posted_at?.slice(0, 10)} - found ${ago(j.discovered_at)}`}>{postedLabel(postedDaysAgo(j)!)}</span>
+                      : <span className="text-slate-300" title="The site doesn't show a posting date">found {ago(j.discovered_at)}</span>}
+                  </td>
                 </tr>
               ))}
             </tbody>

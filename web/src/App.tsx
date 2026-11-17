@@ -31,6 +31,8 @@ export default function App() {
   const [version, setVersion] = useState(0); // bumps when data changes -> detail views reload
   const [offline, setOffline] = useState(false);
   const wasRunning = useRef(false);
+  // Results-table "Posted" filter: starts at your "Posted within" setting; a search sets it to its own window.
+  const [postedWithin, setPostedWithin] = useState(0);
 
   const refresh = useCallback(async () => {
     try {
@@ -61,7 +63,11 @@ export default function App() {
   useEffect(() => {
     refresh();
     pollTask();
-    api.config().then(setConfig).catch(() => {});
+    api.config().then((c) => {
+      setConfig(c);
+      // Start the results table at the same "Posted within" window as your search setting.
+      if (c.search.max_age_days) setPostedWithin(c.search.max_age_days);
+    }).catch(() => {});
   }, [refresh, pollTask]);
 
   // Poll the task every 1.5 s; while something runs, also refresh the results every 4 s
@@ -76,7 +82,8 @@ export default function App() {
     return () => clearInterval(t);
   }, [task?.running, refresh]);
 
-  const onStarted = () => {
+  const onStarted = (postedWithinDays?: number) => {
+    if (postedWithinDays) setPostedWithin(postedWithinDays);
     wasRunning.current = true;
     pollTask();
   };
@@ -142,7 +149,7 @@ export default function App() {
             <SearchPanel config={config} running={running} onStarted={onStarted} />
             <TaskPanel task={task} log={log} />
             <JobsTable jobs={jobs} stats={stats} selected={selected} onSelect={setSelected} running={running}
-              onStarted={onStarted} />
+              onStarted={() => onStarted()} postedWithin={postedWithin} setPostedWithin={setPostedWithin} />
           </>
         )}
         {page === "resume" && (

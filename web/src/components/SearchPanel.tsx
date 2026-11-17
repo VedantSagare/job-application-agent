@@ -11,7 +11,7 @@ const SOURCES = [
 ];
 
 export function SearchPanel({ config, running, onStarted }: {
-  config: Config | null; running: boolean; onStarted: () => void;
+  config: Config | null; running: boolean; onStarted: (postedWithinDays?: number) => void;
 }) {
   const [keywords, setKeywords] = useState<string[]>([]);
   const [locations, setLocations] = useState<string[]>([]);
@@ -44,7 +44,7 @@ export function SearchPanel({ config, running, onStarted }: {
           score_limit: doScore ? scoreLimit : 0,
           tailor_limit: 0, // resumes are tailored per job, from the job's panel
         });
-        onStarted();
+        onStarted(maxAge); // the results table then shows the same posting window
       },
       "Search started - results appear below as they come in",
     );

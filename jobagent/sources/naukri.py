@@ -8,7 +8,7 @@ from __future__ import annotations
 import random
 import re
 
-from playwright.sync_api import BrowserContext, TimeoutError as PWTimeout
+from playwright.sync_api import BrowserContext, Error as PWError, TimeoutError as PWTimeout
 
 from jobagent.db import Job
 from jobagent.sources.common import html_to_text, log
@@ -18,7 +18,7 @@ def _slug(s: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", s.lower()).strip("-")
 
 
-def _search_url(keyword: str, location: str, page: int) -> str:
+def _search_url(keyword: str, location: str, page: int, max_age_days: int | None = None) -> str:
     loc = location.strip().lower()
     remote = loc == "remote"
     city = "" if remote or loc in ("", "india", "anywhere", "worldwide") else location
@@ -32,22 +32,38 @@ def _search_url(keyword: str, location: str, page: int) -> str:
         url += f"&l={city}"
     if remote:
         url += "&wfhType=2"  # work from home
+    if max_age_days:
+        url += f"&jobAge={max_age_days}"  # posted within N days
     return url
 
 
-def search(keywords: list[str], locations: list[str], pages: int, ctx: BrowserContext) -> list[Job]:
+def search(keywords: list[str], locations: list[str], pages: int, ctx: BrowserContext,
+           max_age_days: int | None = None) -> list[Job]:
     page = ctx.new_page()
     found: dict[str, dict] = {}
+    closed = False
     for kw in keywords:
+        if closed:
+            break
         for loc in locations:
+            if closed:
+                break
             for n in range(1, pages + 1):
                 try:
                     with page.expect_response(lambda r: "jobapi/v3/search" in r.url, timeout=30000) as resp:
-                        page.goto(_search_url(kw, loc, n), wait_until="domcontentloaded")
+                        page.goto(_search_url(kw, loc, n, max_age_days), wait_until="domcontentloaded")
                     data = resp.value.json()
                 except PWTimeout:
                     log.warning(f"naukri: no results loaded for '{kw}' in '{loc}' (page {n}); "
                                 "if the window shows a captcha/Access Denied, solve it and rerun")
+                    break
+                except PWError as e:
+                    if page.is_closed() or "closed" in str(e).lower():
+                        log.warning("naukri: the browser window was closed - keeping the jobs found so far")
+                        closed = True
+                    else:
+                        log.warning(f"naukri: page for '{kw}' in '{loc}' failed to load "
+                                    f"({str(e).splitlines()[0][:80]}) - skipping it")
                     break
                 for j in data.get("jobDetails", []):
                     found.setdefault(str(j["jobId"]), j)
@@ -62,6 +78,8 @@ def search(keywords: list[str], locations: list[str], pages: int, ctx: BrowserCo
         apply_url = url
         try:
             with page.expect_response(lambda r: f"jobapi/v4/job/{jid}" in r.url, timeout=20000) as resp:
+                if closed:
+                    raise PWTimeout("window closed")  # use the summary description instead
                 page.goto(url, wait_until="domcontentloaded")
             details = resp.value.json().get("jobDetails", {})
             desc = html_to_text(details.get("description", "")) or desc
@@ -69,6 +87,8 @@ def search(keywords: list[str], locations: list[str], pages: int, ctx: BrowserCo
             apply_url = details.get("applyRedirectUrl") or url
         except PWTimeout:
             pass
+        except PWError:
+            closed = closed or page.is_closed()
         placeholders = {p["type"]: p["label"] for p in j.get("placeholders", [])}
         skills = j.get("tagsAndSkills", "")
         jobs.append(Job(
@@ -85,6 +105,11 @@ def search(keywords: list[str], locations: list[str], pages: int, ctx: BrowserCo
             ),
             posted_at=j.get("footerPlaceholderLabel"),
         ))
-        page.wait_for_timeout(random.randint(1000, 2500))
-    page.close()
+        if not closed:
+            try:
+                page.wait_for_timeout(random.randint(1000, 2500))
+            except PWError:
+                closed = True
+    if not page.is_closed():
+        page.close()
     return jobs
